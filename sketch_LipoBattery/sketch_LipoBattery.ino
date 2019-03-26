@@ -2,14 +2,14 @@
 
 
 /*-------Values set by User------------------------------*/
-double aRef = 3.3; //Either 3.3 volts or 5.0 volts. rx[] and ry[] must change accordingly.
-const int stages = 4 + 1; // this number controls the conversions, upversions, etc. Always add 1 for the zero stage.
-int reps = 25;  //Number of samples to average to get the a2d measurement.
+double aRef = 5.0; //Either 3.3 volts or 5.0 volts. rx[] and ry[] must change accordingly.
+const int stages = 6 + 1; // this number controls the conversions, upversions, etc. Always add 1 for the zero stage.
+int reps = 5;  //Number of samples to average to get the a2d measurement.
 int dlay = 10;  //Number of milliseconds to delay when measuring a new pin.
 int a2dRez = 1023; // Assumes 10 bit A2D. If A2D resolution is different, put the appropriate constant in this variable. a2dRez = 2^bits-1
 // all 3.3v resistors should be measured on multimeter and exact values should be used in these variables.( shown values are random variables within 5%).
-int rx[7] = {0, 509, 279, 99, 360, 360, 680};
-int ry[7] = {0, 333,  70, 14,  39,  29,  47};
+int rx[stages] = {0, 680, 4700, 2000, 30000, 2000, 30000};
+int ry[stages] = {0, 1000,2000, 510,  5100,  270,  3300};
 //Thresholds
 double Drained     = 3.0; // whatever level the battery specs say to never pass
 double DisCharged  = 3.20; // The level set by the operation as needing charge.
@@ -18,18 +18,19 @@ double OverCharged = 4.80; // Whatever level the battery specs say to never exce
 //Testing items to be commented out in loop() when actual measurements are made. For production use, cnts[] will be replaced by analogRead values in getA2D function.
 int cnts[] =   { 0, 512, 512, 484, 509, 486, 505};
 /*--------------End of User Values ---------------------*/
-
-double upvert[7] ; // array will be used to convert the voltage divider voltage to the stage voltage. Elements are the inversion of the voltage divider fractions.
-double count2Volts = aRef / a2dRez; // factor to multiply a2dCount to get the volts measured.
+double temp;                          //temperature
+double cnt2Temp=42;                 //bogus value. Must replace this with the correct scalar
+double upvert[stages] ;               // array will be used to convert the voltage divider voltage to the stage voltage. Elements are the inversion of the voltage divider fractions.
+double count2Volts = aRef / a2dRez;   // factor to multiply a2dCount to get the volts measured.
 // first element of following arrays is always 0. remaining array is populated from indices: 1,2, ...,6
-int pin[] = {0, A0, A1, A2, A3, A4, A5};
-int a2dCnt[7];
-double stdDev[7];
-double snr[7];
-double vdv[7];
-double sv[7];
-double scv[7];
-double pcnt[7];
+int pin[] = {0, A0, A1, A2, A3, A4, A5, A6};  //empty, stg1,stg2,stg3,stg4,stg5,stg6,temperature
+int a2dCnt[stages];
+double stdDev[stages];
+//double snr[stages];
+double vdv[stages];
+double sv[stages];
+double scv[stages];
+double pcnt[stages];
 
 void computeUpverts( int sz) {
   for (int i = 1; i < sz; i++) {
@@ -44,7 +45,7 @@ void fakeA2D(int pins) {
   for (int i=1; i<pins; i++) {
     a2dCnt[i]=cnts[i];
     stdDev[i] = .5;
-    snr[i] = a2dCnt[i] / stdDev[i];
+//    snr[i] = a2dCnt[i] / stdDev[i];
     vdv[i] = a2dCnt[i] * count2Volts;
   }
 }
@@ -56,7 +57,7 @@ void fakeA2D(int pins) {
 void getA2D( int dlay, int reps, int pins) {
 
   RunningStat rs;
-  int first[7];
+  int first[stages];
   for (int i = 1; i < pins; i++) {
     rs.Clear();   // Start new pin with no samples in rs.
     first[i] = analogRead(pin[i]);  //waste a sample to let A2D approximate the value.
@@ -67,10 +68,11 @@ void getA2D( int dlay, int reps, int pins) {
     }
     a2dCnt[i] = rs.Mean();
     stdDev[i] = rs.StandardDeviation();
-    snr[i] = a2dCnt[i] / stdDev[i];
+   // snr[i] = a2dCnt[i] / stdDev[i];
     vdv[i] = a2dCnt[i] * count2Volts;
     delay(dlay); //delay before starting a new pin.
   }
+  temp = analogRead(A6) * cnt2Temp;
 }
 
 
@@ -120,7 +122,7 @@ void showStatus(int stgs) {
       msg = msg +  " OverCharged: ";
     }
     //Serial.println("\n stage, counts, stdDev, SNR, measured, stage, stageCell, status" ); //print header for status outputs.
-    Serial.println( "     " + String(i) + ", " + String(a2dCnt[i]) + ",  " + String(stdDev[i]) + ",  " + String(snr[i]) + ",  " + String(vdv[i]) + ", " + String(sv[i]) + ", " + String(scv[i]) + ", " + msg + " " + pcnt[i] + "%" );
+    Serial.println( "     " + String(i) + ", " + String(a2dCnt[i]) + ",  " + String(stdDev[i]) + ",  "  + String(vdv[i]) + ", " + String(sv[i]) + ", " + String(scv[i]) + ", " + msg + " " + pcnt[i] + "%" );
     Serial.println();
   }
   Serial.println("\n----------------------------\n");
@@ -141,7 +143,7 @@ void setup() {
   }
   computeUpverts(stages);
   showResistors(stages);  //uncomment this if you want to see the resistor values in the monitor at startup.
-  Serial.println("\n stage, counts, stdDev, SNR, measured, stage, stageCell, status" ); //print header for status outputs.
+//  Serial.println("\n stage, counts, stdDev, SNR, measured, stage, stageCell, status" ); //print header for status outputs.
 }
 
 void loop() {
@@ -149,5 +151,7 @@ void loop() {
   getA2D(10, 25, stages); //delay 10 ms, reps=25, pins=stages note: pin[0] is 0; pin[1]=A0.
   stageVoltages(vdv, sv, stages);
   stageCellVoltages(sv, scv, stages);
-  showStatus(stages);
+ // showStatus(stages);
+ Serial.println( "\n" +String(sv[1]) + "," + String(sv[2])+ ","  + String(sv[3]) + ","  + String(sv[4]) + "," + String(sv[5]) + "," + String(sv[6]) + "," + String(temp));   // with the Telemetry View application, we only need to output a comma-delimited string of values.
+ 
 }
