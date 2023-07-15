@@ -17,8 +17,8 @@ void loop() {
   Serial.println("Waking up motors..." );
   power.wakeup();
   Serial.println("Starting motors: A(3,2,4) and B(5,6,7)" );
-  motorA.run(130, 0, 1200); //(pwm,dir, dur)
-  motorB.run(200, 1, 1200);
+  motorA.run(130, CW, 1200); //(pwm,dir, dur)
+  motorB.run(200, CCW, 1200);
   Serial.println("Putting motors to sleep ..." );
   power.powerdown();
 }
